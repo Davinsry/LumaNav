@@ -12,7 +12,7 @@
 
 **NASA Space Apps Challenge 2026**
 
-Built by **[Team Flashover](#-team)** for the **Lunar Landing Site Navigator** challenge.
+Built by **[Team Flashover](#-team)** for the **Lunar Landing Site Navigator** challenge. 
 
 </div>
 
