@@ -505,12 +505,6 @@ LumaNav provides information to support scenario exploration and comparison. **T
 
 ---
 
-## 🤖 Use of AI
-
-Claude (Anthropic) was used to help write and review code, tests and documentation, and to cross-check calculations against NASA JPL Horizons. Design decisions and testing were carried out by the team. The product itself contains no AI or machine-learning model: every result comes from deterministic, verifiable formulas.
-
----
-
 ## 👥 Team
 
 **Team Flashover**
