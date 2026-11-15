@@ -19,6 +19,8 @@ Built by **[Team Flashover](#-team)** for the **Lunar Landing Site Navigator** c
 
 </div>
 
+</div>
+
 ---
 
 ## 🌕 About LumaNav
