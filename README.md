@@ -1,5 +1,8 @@
  <div align="center">
-
+ <img width="1342" height="405" alt="Frame 12" src="https://github.com/user-attachments/assets/8c0b38f5-8457-4377-b321-89b266bd86d9" />
+  
+<div align="center">
+ 
 # 🌙 LumaNav
 
 ### Lunar Landing Site Navigator
@@ -12,7 +15,7 @@
 
 **NASA Space Apps Challenge 2026**
 
-Built by **[Team Flashover](#-team)** for the **Lunar Landing Site Navigator** challenge.
+Built by **[Team Flashover](#-team)** for the **Lunar Landing Site Navigator** challenge. 
 
 </div>
 
@@ -502,12 +505,6 @@ LumaNav is designed as a lunar landing site exploration and early mission-planni
 - **Landing Coordinates:** Coordinates associated with some commercial lunar landers are approximate.
 
 LumaNav provides information to support scenario exploration and comparison. **The final landing-site selection remains the user's responsibility, and no recommendation guarantees mission success.**
-
----
-
-## 🤖 Use of AI
-
-Claude (Anthropic) was used to help write and review code, tests and documentation, and to cross-check calculations against NASA JPL Horizons. Design decisions and testing were carried out by the team. The product itself contains no AI or machine-learning model: every result comes from deterministic, verifiable formulas.
 
 ---
 
