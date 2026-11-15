@@ -43,7 +43,7 @@ From exploring 3D lunar terrain to examining landing windows and watching an Ear
 
 About one minute, recorded from the app itself: plan a landing, compare the top three sites, inspect the 30-day window, then fly the mission from the launch pad to touchdown. Click the image to play it.
 
-**Project slides:** [view on Canva](https://www.canva.com/design/DAHa3xY1sBI/kGBhdBmWFyjtK9PsEXorRQ/view)
+**Project slides:** [view on Slides](https://drive.google.com/file/d/1rAQHtGOXXy7dOPTe52It2_eHajl73wlc/view?usp=sharing)
 
 ---
 
