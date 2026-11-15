@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LumaNav: Lunar Landing Site Navigator</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
       --bg: #06080b; --panel: #111111; --solid: #111111; --line: #1d242e; --text: #e2e7ee; --muted: #808b98;
@@ -48,6 +49,7 @@
     /* sidebar */
     .side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--solid); z-index: 1; }
     .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
+    .logo-img { display: block; height: 34px; width: auto; }
     .logo i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
     .link { background: none; border: 0; padding: 4px 6px; cursor: pointer; color: var(--muted); font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; }
     .link:hover { color: var(--text); background: #141a22; }
@@ -376,7 +378,7 @@
   <div id="app">
     <aside id="side">
       <div class="side-head">
-        <span class="logo"><i></i>LumaNav</span>
+        <img class="logo-img" src="/logo-lumanav.svg" alt="LumaNav" width="113" height="34" />
         <div class="side-head-r">
           <button class="link" id="about-btn" aria-haspopup="true" aria-expanded="false" title="Method, data and validation"><span data-icon="info"></span>Method</button>
           <button class="icon-btn" id="side-toggle" type="button" aria-label="Close sidebar" title="Close sidebar"><span data-icon="sidebar"></span></button>

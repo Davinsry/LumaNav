@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g id="terminator-lander">
+    <path d="M 394.59 394.59 A 196 196 0 0 1 117.41 117.41 Z" fill="#0f1847" stroke="#22327a" stroke-width="3"/>
+    <!-- Scattered asymmetric lunar craters on dark half -->
+    <circle cx="152" cy="304" r="28" fill="#131f5c" stroke="#263888" stroke-width="4"/>
+    <circle cx="232" cy="378" r="18" fill="#131f5c" stroke="#263888" stroke-width="3.5"/>
+    <circle cx="118" cy="222" r="13" fill="#131f5c" stroke="#263888" stroke-width="3"/>
+    <circle cx="294" cy="348" r="10" fill="#131f5c" stroke="#263888" stroke-width="3"/>
+    <!-- Lit half moon + two-tone sunlit limb -->
+    <path d="M 117.41 117.41 A 196 196 0 0 1 394.59 394.59 Z" fill="#ffd257"/>
+    <path d="M 117.41 117.41 A 196 196 0 0 1 394.59 394.59 A 256 256 0 0 0 117.41 117.41 Z" fill="#ffeca8"/>
+    <!-- Crisp diagonal terminator line clipped cleanly to moon edge -->
+    <line x1="117.41" y1="117.41" x2="394.59" y2="394.59" stroke="#ff5a36" stroke-width="6" stroke-linecap="round"/>
+    <!-- Geometric lunar lander + directional beam perpendicular to terminator -->
+    <g transform="translate(256, 256) rotate(45)">
+      <polygon points="-3.5,-196 3.5,-196 2,-52 -2,-52" fill="#ff5a36"/>
+      <g transform="scale(1.18)">
+        <line x1="-12" y1="-12" x2="-24" y2="0" stroke="#0b1030" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="12" y1="-12" x2="24" y2="0" stroke="#0b1030" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="-30" y1="0" x2="-17" y2="0" stroke="#0b1030" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="17" y1="0" x2="30" y2="0" stroke="#0b1030" stroke-width="4.5" stroke-linecap="round"/>
+        <polygon points="-5,-10 5,-10 7,-3 -7,-3" fill="#0b1030"/>
+        <rect x="-16" y="-26" width="32" height="16" rx="2.5" fill="#0b1030"/>
+        <polygon points="-12,-26 12,-26 9,-40 -9,-40" fill="#0b1030"/>
+        <line x1="0" y1="-40" x2="0" y2="-47" stroke="#0b1030" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="0" cy="-48" r="4" fill="#ff5a36"/>
+      </g>
+    </g>
+  </g>
+</svg>
