@@ -32,6 +32,16 @@ From exploring 3D lunar terrain to examining landing windows and watching an Ear
 
 **Explore the Moon. Understand the conditions. Make better-informed landing decisions.**
 
+## 🎬 Demo Video
+
+[![Watch the LumaNav demo video (about 1 minute)](docs/images/demo-thumbnail.jpg)](docs/demo.mp4)
+
+About one minute, recorded from the app itself: plan a landing, compare the top three sites, inspect the 30-day window, then fly the mission from the launch pad to touchdown. Click the image to play it.
+
+**Project slides:** [view on Canva](https://www.canva.com/design/DAHa3xY1sBI/kGBhdBmWFyjtK9PsEXorRQ/view)
+
+---
+
 ## 🌑 Why Lunar Visibility Matters
 
 The surrounding lunar terrain plays an important role in determining what a landing site can observe and receive.
@@ -178,6 +188,51 @@ LumaNav visualizes the major stages of a conceptual Earth-to-Moon mission.
 | ☀️ **Surface Operations** | A seven-day timelapse visualizes sunlight availability and direct Earth visibility at the landing site. |
 
 The surface simulation highlights periods when sunlight and Earth visibility conditions are available, providing a visual representation of the environmental conditions that may influence lunar surface operations.
+
+---
+
+## 🖼️ Screenshots
+
+![LumaNav overview: launch planner, site recommendations and 3D terrain](docs/images/overview.jpg)
+
+**Site recommendations.** The top three of 15 candidate sites for the chosen route, with the numbers behind each score.
+
+![Recommended sites popup with scores](docs/images/recommendations.jpg)
+
+**Visibility status.** Sun and Earth status at the landing moment, how long until each sets, and the longest night.
+
+![Power and communication status](docs/images/status.jpg)
+
+**Terrain horizon.** The real horizon profile with the Sun and Earth paths drawn over it.
+
+![Terrain horizon with Sun and Earth paths](docs/images/horizon.jpg)
+
+**Landing calendar.** Pick a month by how many good landing days it has, then see the seasonal pattern across the year.
+
+![Months with their number of good landing days](docs/images/calendar-months.jpg)
+
+![Yearly calendar of good landing days](docs/images/calendar-year.jpg)
+
+**Scenario comparison.** Sites and launch delays side by side.
+
+![Scenario comparison table](docs/images/compare.jpg)
+
+**Illumination map.** In Shackleton crater the floor stays dark (0% sunlit) while the rim is lit.
+
+![Illumination map of Shackleton crater](docs/images/illumination.jpg)
+
+**Flight simulation.**
+
+| | |
+| --- | --- |
+| ![Liftoff from the launch pad](docs/images/sim-liftoff.jpg) | ![Climb to Earth orbit](docs/images/sim-ascent.jpg) |
+| **Liftoff** from the chosen pad | **Ascent** to Earth orbit |
+| ![Lunar orbit](docs/images/sim-lunar-orbit.jpg) | ![Surface timelapse](docs/images/sim-landing.jpg) |
+| **Lunar orbit** at 100 km | **Surface timelapse**: green = sunlit with Earth in view |
+
+**Validation against NASA JPL Horizons.** Maximum difference 0.0055° over 8 epochs (about 1% of the Sun's apparent width).
+
+![Validation table against NASA JPL Horizons](docs/images/validation.jpg)
 
 ---
 
@@ -447,6 +502,12 @@ LumaNav is designed as a lunar landing site exploration and early mission-planni
 - **Landing Coordinates:** Coordinates associated with some commercial lunar landers are approximate.
 
 LumaNav provides information to support scenario exploration and comparison. **The final landing-site selection remains the user's responsibility, and no recommendation guarantees mission success.**
+
+---
+
+## 🤖 Use of AI
+
+Claude (Anthropic) was used to help write and review code, tests and documentation, and to cross-check calculations against NASA JPL Horizons. Design decisions and testing were carried out by the team. The product itself contains no AI or machine-learning model: every result comes from deterministic, verifiable formulas.
 
 ---
 
