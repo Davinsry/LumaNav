@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LumaNav: Lunar Landing Site Navigator</title>
+  <style>
+    :root {
+      --bg: #06080b; --panel: #111111; --solid: #111111; --line: #1d242e; --text: #e2e7ee; --muted: #808b98;
+      --sun: #ffcf4a; --sun-dim: rgba(255, 207, 74, 0.45); --earth: #5b9dff; --earth-dim: rgba(91, 157, 255, 0.35);
+      --accent: #ff5a36; --bar-off: #151b23; --good: #4caf6a; --mid: #8a6a1f; --ground: rgba(120, 118, 112, 0.55); --ground-edge: #b9b4a8;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+    button, input, select { font: inherit; color: inherit; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    /* layout: fixed left sidebar + main (3D on top, dock below) */
+    #app { display: grid; grid-template-columns: var(--side-w, 300px) minmax(0, 1fr); height: 100vh; position: relative; }
+    #app.side-closed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+    #app.side-closed #side, #app.side-closed #side-grip { display: none; }
+    #app.side-closed #dock-pop { width: min(760px, calc(100vw - 28px)); }
+    /* sidebar width grip on its right edge */
+    #side-grip { position: absolute; top: 0; bottom: 0; left: calc(var(--side-w, 300px) - 5px); width: 10px; cursor: col-resize; z-index: 4; touch-action: none; }
+    #side-grip::after { content: ''; position: absolute; top: 50%; left: 3px; width: 4px; height: 48px; margin-top: -24px; border-radius: 2px; background: #2a3340; }
+    #side-grip:hover::after, #side-grip:focus-visible::after, #side-grip.drag::after { background: var(--muted); }
+    #side { background: var(--solid); border-right: 1px solid var(--line); overflow-y: auto; min-height: 0; }
+    .side-head-r { display: inline-flex; align-items: center; gap: 6px; }
+    .icon-btn { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 7px; background: #141a22; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; padding: 0; }
+    .icon-btn svg { width: 17px; height: 17px; }
+    .icon-btn:hover { color: #fff; border-color: var(--muted); background: #1b232e; }
+    #side-open { position: absolute; top: 12px; left: 12px; z-index: 6; width: 34px; height: 34px; padding: 0; border-radius: 8px; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); }
+    #side-open svg { width: 18px; height: 18px; }
+    #side-open:hover { color: #fff; border-color: var(--muted); background: #18202b; }
+    .bar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; user-select: none; }
+    #traj-hud-body { display: grid; gap: 6px; }
+    #traj-details-body { display: grid; gap: 10px; }
+    #traj-hud.min #traj-hud-body, #traj-details.min #traj-details-body { display: none; }
+    #traj-hud.min, #traj-details.min { padding: 7px 10px; overflow: hidden; }
+    #main { display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; }
+    #view { position: relative; min-height: 0; overflow: hidden; }
+    #view canvas { display: block; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); }
+    #side, #traj-details, #dock-pop > [data-pane], #picker, .pop, .cmp-wrap { scrollbar-width: none; -ms-overflow-style: none; }
+    #side::-webkit-scrollbar, #traj-details::-webkit-scrollbar, #dock-pop > [data-pane]::-webkit-scrollbar, #picker::-webkit-scrollbar, .pop::-webkit-scrollbar, .cmp-wrap::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+    /* sidebar */
+    .side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--solid); z-index: 1; }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
+    .logo i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .link { background: none; border: 0; padding: 4px 6px; cursor: pointer; color: var(--muted); font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; }
+    .link:hover { color: var(--text); background: #141a22; }
+    .link svg { width: 14px; height: 14px; }
+    .side-sec { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+    .side-sec h4, .lbl { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .field { width: 100%; min-height: 40px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color-scheme: dark; }
+    .field:hover { border-color: #33404f; }
+    #site-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; text-align: left; }
+    #site-btn span { min-width: 0; display: grid; }
+    #site-btn b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #site-btn small { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    #date-btn { display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 13.5px; }
+    #date-btn svg { width: 16px; height: 16px; color: var(--muted); }
+
+    /* custom date picker: month grid + landing-quality dot per day */
+    #datepick { position: absolute; z-index: 8; width: 292px; padding: 12px; background: var(--solid); }
+    .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .dp-head b { font-size: 14px; }
+    .dp-title { background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 10px; font-size: 14px; font-weight: 700; color: var(--text); cursor: pointer; }
+    .dp-title:hover { border-color: var(--line); background: #141a22; }
+    .dp-grid.months { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .dp-month { display: grid; gap: 3px; justify-items: center; padding: 10px 4px; background: none; border: 1px solid transparent; border-radius: 8px; cursor: pointer; color: var(--text); }
+    .dp-month:hover { background: #18202b; }
+    .dp-month:focus-visible { outline: 2px solid var(--earth); outline-offset: -2px; }
+    .dp-month b { font-size: 13px; font-weight: 600; }
+    .dp-month small { font-size: 10.5px; color: var(--muted); }
+    .dp-month small.has { color: var(--good); }
+    .dp-month.today { border-color: #3a4655; }
+    .dp-month.sel { background: var(--accent); }
+    .dp-month.sel small { color: #fff; }
+    .tabs-date { align-self: center; padding: 0 10px 0 8px; font: 12px ui-monospace, Consolas, monospace; color: var(--muted); border-right: 1px solid var(--line); margin-right: 2px; white-space: nowrap; }
+    .dp-nav { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; border-radius: 7px; cursor: pointer; color: var(--muted); }
+    .dp-nav:hover { color: var(--text); border-color: var(--line); background: #141a22; }
+    .dp-nav svg { width: 16px; height: 16px; }
+    .dp-week, .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .dp-week span { text-align: center; font-size: 11px; color: var(--muted); padding: 4px 0; }
+    .dp-day { position: relative; height: 36px; background: none; border: 1px solid transparent; border-radius: 7px; cursor: pointer; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .dp-day:hover { background: #18202b; }
+    .dp-day:focus-visible { outline: 2px solid var(--earth); outline-offset: -2px; }
+    .dp-day.out { color: #4b5562; }
+    .dp-day.today { border-color: #3a4655; }
+    .dp-day.sel { background: var(--accent); color: #fff; font-weight: 700; }
+    .dp-day i { position: absolute; left: 50%; bottom: 4px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; }
+    .dp-day.sel i { box-shadow: 0 0 0 1.5px var(--accent); }
+    .q2 { background: var(--good); } .q1 { background: #c9a227; } .q0 { background: #3a4452; }
+    .dp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .dp-key { font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+    .dp-key i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-left: 6px; }
+    .dp-key i:first-child { margin-left: 0; }
+
+    /* floating Earth-Moon trajectory map + mission details (top-right of the view) */
+    #bar { position: absolute; top: 12px; right: 12px; bottom: 58px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; max-height: calc(100% - 70px); }
+    #bar > * { pointer-events: auto; }
+    #traj-hud { width: 310px; padding: 8px 10px; display: grid; gap: 6px; flex: none; }
+    #traj-details { width: 310px; padding: 10px 12px; display: grid; gap: 10px; font-size: 12.5px; overflow-y: auto; min-height: 0; }
+
+    /* site picker popover */
+    #picker { position: absolute; top: 64px; left: 12px; width: 360px; max-height: calc(100% - 80px); overflow-y: auto; padding: 8px; z-index: 8; background: var(--solid); }
+    .moon-map-wrap { padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+    #moon-map { width: 100%; aspect-ratio: 2 / 1; height: auto; display: block; border-radius: 6px; border: 1px solid var(--line); cursor: crosshair; background: var(--bg); }
+    .moon-map-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 11px; color: var(--muted); }
+    #sites { list-style: none; margin: 0; padding: 0; }
+    #sites li { display: flex; align-items: center; border-radius: 7px; }
+    #sites li.site-grp { display: block; padding: 8px 10px 3px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    #sites li.site-grp:hover { background: transparent; }
+    #sites li:hover { background: #141a22; }
+    #sites li.on { background: rgba(255, 90, 54, 0.1); }
+    #sites .pick { flex: 1; text-align: left; background: none; border: 0; padding: 8px 10px; cursor: pointer; }
+    #sites .pick b { display: block; font-weight: 600; font-size: 13px; }
+    #sites .pick small { color: var(--muted); font-size: 11.5px; }
+    #sites .pin { background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 3px 7px; margin-right: 8px; white-space: nowrap; }
+    #sites .pin.on { color: var(--sun); border-color: rgba(255, 207, 74, 0.4); }
+    .picker-foot { border-top: 1px solid var(--line); margin-top: 6px; padding: 10px; }
+    .picker-foot p { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+    form input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+    .btn { background: #18202b; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+    .btn:hover { border-color: var(--muted); }
+
+    /* status section: verdict → two status rows → three numbers */
+    .verdict { display: grid; gap: 6px; font-weight: 650; font-size: 15px; line-height: 1.3; }
+    .badge { justify-self: start; font: 700 11px system-ui; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; }
+    .badge.good { background: rgba(76, 175, 106, 0.18); color: #8fdca6; }
+    .badge.risk { background: rgba(255, 176, 32, 0.16); color: #ffc95c; }
+    .badge.bad { background: rgba(255, 90, 54, 0.18); color: #ff9a80; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .dot.good { background: var(--good); } .dot.risk { background: #ffb020; } .dot.bad { background: var(--accent); }
+    .stat { display: grid; grid-template-columns: 16px 1fr auto; gap: 10px; align-items: center; }
+    .stat .who { display: grid; gap: 3px; justify-items: start; }
+    .stat .name { color: var(--muted); font-size: 12px; }
+    .stat .next { text-align: right; display: grid; }
+    .stat .next small { font-size: 12px; color: var(--muted); }
+    .stat .next b { font: 600 14px ui-monospace, Consolas, monospace; }
+    .ic { display: inline-flex; }
+    .ic.sun { color: var(--sun); } .ic.earth { color: var(--earth); } .ic.sci { color: #8fd3ff; } .ic.area { color: var(--good); }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .kpis div { display: grid; gap: 2px; }
+    .kpis small { font-size: 11.5px; color: var(--muted); }
+    .kpis b { font: 600 16px ui-monospace, Consolas, monospace; }
+
+    /* collapsible dock */
+    #dock-toggle { width: 34px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    #dock-toggle svg { transition: transform 0.15s; }
+    #dock.min #dock-toggle svg { transform: rotate(180deg); }
+    #dock.min [data-pane] { display: none !important; }
+    #dock.min header { margin-bottom: 0; }
+    .row .lbl { font-size: 11px; color: var(--muted); text-align: right; display: block; }
+    .chip { font: 700 10.5px system-ui; letter-spacing: 0.06em; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+    .chip.sun { background: var(--sun); color: #1a1405; }
+    .chip.part { background: var(--sun-dim); color: #1a1405; }
+    .chip.earth { background: var(--earth); color: #06101f; }
+    .chip.off { background: #252c36; color: #a3adb9; }
+    .sum { border-top: 1px solid var(--line); padding-top: 9px; font-size: 12px; color: var(--muted); }
+    .sum b { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
+
+    .seg { display: flex; align-items: center; padding: 3px; gap: 2px; }
+    .seg button { background: none; border: 0; padding: 5px 10px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 12.5px; }
+    .seg button:hover { color: var(--text); }
+    .seg button.on { background: #1b232e; color: var(--text); }
+    .side-seg { flex-wrap: wrap; }
+    .side-seg button { flex: 1 1 auto; text-align: center; padding: 5px 8px; font-size: 12px; }
+    .tool { padding: 7px 12px; cursor: pointer; font-size: 12.5px; }
+    .tool:hover { border-color: #33404f; }
+    #legend { padding: 8px 10px; width: 100%; font-size: 11.5px; }
+    #legend .bar { height: 8px; border-radius: 4px; margin: 6px 0 3px; }
+    #legend .ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+    #legend .info { margin-top: 6px; color: var(--muted); min-height: 1.4em; }
+    #legend .info b { color: var(--text); font-weight: 600; }
+
+    #cal { width: 100%; display: block; cursor: pointer; }
+    .cal-foot { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--muted); }
+    .cal-foot b { color: var(--text); font-weight: 600; }
+    #cal-best { cursor: pointer; }
+    #cal-best:hover b { text-decoration: underline; }
+
+    /* about popover */
+    .pop { position: absolute; top: 56px; left: 12px; z-index: 8; background: var(--solid); padding: 14px 16px; width: 520px; max-width: calc(100% - 24px); max-height: calc(100% - 70px); overflow-y: auto; font-size: 13px; line-height: 1.5; }
+    .pop h3 { margin: 0; font-size: 18px; }
+    .pop .tag { margin: 2px 0 10px; color: var(--sun); font-size: 12.5px; }
+    .pop h4 { margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .pop p { margin: 0 0 6px; }
+    .pop ul, .pop ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+    .pop .small { font-size: 12px; color: var(--muted); }
+    table.val { width: 100%; border-collapse: collapse; font: 12px ui-monospace, Consolas, monospace; margin: 4px 0 6px; }
+    table.val th { text-align: left; font: 600 11px system-ui; color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+    table.val td { padding: 3px 6px; border-bottom: 1px solid #141a22; white-space: nowrap; }
+    .ok { color: var(--good); }
+
+    /* compare tab */
+    .cmp-wrap { overflow-x: auto; }
+    #cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    #cmp th { text-align: left; font-weight: 600; font-size: 11px; color: var(--muted); padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    #cmp td { padding: 6px 8px; border-bottom: 1px solid #141a22; white-space: nowrap; }
+    #cmp td.num { font-family: ui-monospace, Consolas, monospace; }
+    #cmp td.best { color: var(--good); font-weight: 700; }
+    #cmp tr.cur td:first-child { box-shadow: inset 3px 0 var(--accent); }
+    #cmp td small { color: var(--muted); display: block; font-size: 11px; }
+    #cmp .vd { display: inline-flex; align-items: center; gap: 6px; }
+    #cmp button { background: #18202b; border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 11.5px; margin-left: 4px; }
+    #cmp button:hover { border-color: var(--muted); }
+    .cmp-foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+    .cmp-foot select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin-left: 6px; color-scheme: dark; }
+    #cmp-sum b { color: var(--text); }
+
+    /* mission tab: inputs | results | trajectory diagram */
+    .ms { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px 24px; align-items: start; }
+    .ms-in { display: grid; gap: 8px; }
+    .ms-seg { padding: 3px; }
+    .ms-seg button { flex: 1; }
+    .ms-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ms-two label { display: grid; gap: 6px; }
+    .ms-two .lbl { text-transform: none; letter-spacing: 0; font-size: 11.5px; }
+    .ms-out { display: grid; gap: 12px; font-size: 13px; }
+    .ms-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+    .ms-steps li { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: start; padding: 4px 0; position: relative; }
+    .ms-steps li::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--line); border: 2px solid #3a4655; margin-top: 4px; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+    .ms-steps li.done::before { background: rgba(255, 90, 54, 0.45); border-color: var(--accent); }
+    .ms-steps li.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 90, 54, 0.24); }
+    .ms-steps li:not(:last-child)::after { content: ''; position: absolute; left: 6px; top: 19px; bottom: -5px; width: 1px; background: #2a3340; }
+    .ms-steps li.done:not(:last-child)::after { background: rgba(255, 90, 54, 0.45); }
+    .ms-steps b { font-weight: 600; display: block; }
+    .ms-steps li.active b { color: var(--accent); }
+    .ms-steps small { color: var(--muted); font-size: 12px; display: block; }
+    .step-live { display: none; margin-top: 3px; font-size: 11px; color: var(--text); background: rgba(255, 90, 54, 0.14); border: 1px solid rgba(255, 90, 54, 0.38); border-radius: 5px; padding: 2px 6px; width: fit-content; font-variant-numeric: tabular-nums; }
+    .ms-steps li.active .step-live { display: inline-block; }
+    .ms-steps .when { font: 12.5px ui-monospace, Consolas, monospace; color: #c9d1db; text-align: right; white-space: nowrap; }
+    .ms-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .ms-kpis div { display: grid; gap: 2px; }
+    .ms-kpis small { font-size: 11.5px; color: var(--muted); }
+    .ms-kpis b { font: 600 15px ui-monospace, Consolas, monospace; }
+    .ms-land { display: grid; gap: 8px; background: #111111; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+    .ms-land .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ms-land .btn { justify-self: start; }
+    .ms-slip { font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; }
+    .ms-slip div { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+    .ms-slip b { color: var(--text); font-weight: 600; }
+    #ms-canvas { width: 100%; height: 156px; display: block; background: #080a0e; border: 1px solid var(--line); border-radius: 7px; }
+    .ms-map { display: grid; gap: 8px; }
+    .sim-ctl { display: flex; align-items: center; gap: 8px; }
+    #sim-play { width: 38px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    #sim-play svg { width: 16px; height: 16px; fill: currentColor; }
+    #sim-u { flex: 1; min-width: 0; accent-color: var(--accent); }
+    #sim-3d { height: 32px; white-space: nowrap; }
+    .ms-act { display: flex; gap: 8px; flex-wrap: wrap; }
+    #space-exit { width: 100%; justify-content: center; }
+    .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+    .btn.go svg { width: 14px; height: 14px; fill: currentColor; }
+    #sim-3d.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .space-canvas { position: absolute; inset: 0; z-index: 1; display: block; }
+    .sim-tel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; }
+    .sim-tel div { display: grid; gap: 2px; min-width: 0; }
+    .sim-tel small { font-size: 11px; color: var(--muted); }
+    .sim-tel b { font: 600 13px ui-monospace, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    #ms-route { flex-direction: column; align-items: stretch; }
+    #ms-route button { text-align: left; padding: 7px 10px; }
+    #ms-route button.peek:not(.on) { color: var(--text); background: #161d27; }
+    #ms-eta { font-size: 11.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; line-height: 1.45; }
+    #ms-eta b { color: var(--text); font-weight: 600; }
+    .ms-more { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 8px; }
+    .ms-more summary { font-size: 11.5px; color: var(--muted); cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+    .ms-more summary::after { content: '▾'; font-size: 11px; }
+    .ms-more[open] summary::after { content: '▴'; }
+    .ms-more[open] summary { color: var(--text); margin-bottom: 2px; }
+    .ms-more-body { display: grid; gap: 8px; }
+    .ms-btn-sm { width: auto; padding: 5px 9px; font-size: 11px; justify-content: center; gap: 4px; white-space: nowrap; }
+    .ms-btn-pri { border-color: var(--accent, var(--muted)); color: var(--accent, inherit); }
+    .ms-rec { display: grid; gap: 8px; }
+    #route-pop { position: absolute; z-index: 9; width: 340px; max-width: calc(100% - 24px); max-height: calc(100% - 24px); overflow-y: auto; padding: 12px 14px; background: var(--solid); display: grid; gap: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55); }
+    #route-pop[hidden] { display: none; }
+    .rp-head { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+    .rp-head b { color: var(--text); font-size: 13px; font-weight: 600; }
+    .ms-rec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ms-rec-head span { font-size: 11.5px; color: var(--muted); }
+    .ms-rec-list { display: grid; gap: 8px; }
+    .ms-rec-item { padding: 8px 10px; border: 1px solid var(--line, color-mix(in srgb, var(--muted) 28%, transparent)); border-radius: 8px; background: #111111; display: grid; gap: 5px; min-width: 0; }
+    .ms-rec-item.active { border-color: var(--accent, var(--muted)); }
+    [data-rec-card] { cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+    [data-rec-card]:hover, [data-rec-card]:focus-visible { border-color: #4a5666; background: #161b22; outline: none; }
+    [data-rec-card].active:hover { border-color: var(--accent); }
+    .ms-rec-hint { font-size: 11px; color: var(--muted); }
+    .ms-rec-item.active .ms-rec-hint { color: var(--accent); font-weight: 600; }
+    .ms-rec-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; }
+    .ms-rec-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; min-width: 0; }
+    .ms-score { font: 600 11px ui-monospace, Consolas, monospace; color: var(--accent, inherit); white-space: nowrap; }
+    .ms-rec-meta { font-size: 11px; color: var(--muted); line-height: 1.4; font-variant-numeric: tabular-nums; }
+    .ms-rec-meta.sub { color: var(--text); opacity: 0.85; }
+    .ms-rec-tip { width: 100%; text-align: left; background: #141b24; border: 1px dashed #2e3e52; border-radius: 6px; padding: 5px 8px; font-size: 11px; color: #8fdca6; cursor: pointer; line-height: 1.35; }
+    .ms-rec-tip:hover { border-color: var(--good); background: #18222d; }
+    .ms-rec-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+
+    #land-hud { position: absolute; left: 12px; bottom: 12px; z-index: 4; width: 320px; max-width: calc(100% - 24px); padding: 10px 12px; display: grid; gap: 7px; font-size: 12px; pointer-events: auto; background: rgba(17, 17, 17, 0.92); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); }
+    .lh-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .lh-head-r { display: inline-flex; align-items: center; gap: 7px; }
+    .lh-close { width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 5px; background: #141a22; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; padding: 0; }
+    .lh-close:hover { color: var(--text); border-color: var(--muted); background: #1d2530; }
+    .lh-title { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 175px; }
+    .lh-day { font-size: 11px; font-weight: 700; color: var(--sun); font-variant-numeric: tabular-nums; }
+    .lh-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .lh-event { font-size: 11px; font-weight: 600; color: #ffcf4a; background: rgba(255, 207, 74, 0.12); border: 1px solid rgba(255, 207, 74, 0.32); border-radius: 6px; padding: 4px 8px; }
+    .lh-foot { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 7px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .lh-foot b { color: var(--text); }
+
+    .utc-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .utc-sel { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; width: 100%; font-variant-numeric: tabular-nums; }
+    .tl-inspect, .pano-explain { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .tl-inspect b, .pano-explain b { color: var(--text); font-weight: 500; }
+    #loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: var(--bg); }
+
+    /* floating bottom-right analysis tabs + hover/click popup */
+    #dock { position: absolute; right: 12px; bottom: 12px; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; max-width: calc(100% - 24px); }
+    #dock > * { pointer-events: auto; }
+    #dock-pop { position: relative; width: min(760px, calc(100vw - var(--side-w, 300px) - 28px)); max-height: min(430px, calc(100vh - 76px)); padding: 12px 14px; display: flex; flex-direction: column; min-height: 0; background: #111111; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55); }
+    #dock-pop::after { content: ''; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; }
+    #dock-pop > [data-pane] { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    [data-pane="pano"]:not([hidden]) { display: flex; flex-direction: column; }
+    #dock-pop header { display: flex; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+    #play { width: 32px; height: 28px; padding: 0; }
+    #play:disabled, #ms-go:disabled, #sim-play:disabled, #sim-3d:disabled {
+      opacity: 0.38; cursor: not-allowed !important; pointer-events: none; filter: grayscale(0.6);
+    }
+    .tabs { display: flex; background: #111111; border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
+    .tabs button { background: none; border: 0; padding: 6px 14px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 13px; transition: background 0.12s, color 0.12s; }
+    .tabs button:hover { color: var(--text); }
+    .tabs button.on { background: #1b232e; color: var(--text); font-weight: 500; }
+    #now { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+    #timeline { width: 100%; display: block; cursor: ew-resize; touch-action: none; }
+    #pano { width: 100%; height: 180px; min-height: 160px; display: block; }
+    .key { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+    .key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin: 0 4px 0 10px; }
+    .key i:first-child { margin-left: 0; }
+
+    /* medium screens: slimmer sidebar; compact split widths (~675px); phones: sidebar stacks on top */
+    @media (max-width: 900px) {
+      #app { grid-template-columns: var(--side-w, 250px) minmax(0, 1fr); }
+      #app.side-closed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+      #side-grip { left: calc(var(--side-w, 250px) - 5px); }
+      .side-sec { padding: 12px 14px; }
+      #bar { bottom: auto; max-height: calc(100% - 275px); }
+      #traj-details { max-height: 220px; }
+      #land-hud { bottom: 52px; left: 10px; width: min(300px, calc(100% - 20px)); }
+    }
+    @media (max-width: 740px) {
+      #app { grid-template-columns: var(--side-w, 232px) minmax(0, 1fr); }
+      #side-grip { left: calc(var(--side-w, 232px) - 5px); }
+      .side-sec { padding: 10px 12px; gap: 8px; }
+      #traj-hud, #traj-details { width: min(280px, calc(100vw - var(--side-w, 232px) - 24px)); }
+      .tabs button { padding: 5px 9px; font-size: 12px; }
+      .seg button { padding: 5px 4px; font-size: 11.5px; }
+      #ms-route button { padding: 7px 10px; font-size: 12px; }
+      #land-hud { width: min(300px, calc(100% - 20px)); }
+    }
+    @media (max-width: 560px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+      #app.side-closed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+      #side { max-height: 34vh; border-right: 0; border-bottom: 1px solid var(--line); }
+      #side-grip { display: none; }
+      #picker { width: calc(100% - 24px); }
+      #traj-hud, #traj-details { width: min(290px, calc(100vw - 24px)); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="side">
+      <div class="side-head">
+        <span class="logo"><i></i>LumaNav</span>
+        <div class="side-head-r">
+          <button class="link" id="about-btn" aria-haspopup="true" aria-expanded="false" title="Method, data and validation"><span data-icon="info"></span>Method</button>
+          <button class="icon-btn" id="side-toggle" type="button" aria-label="Close sidebar" title="Close sidebar"><span data-icon="sidebar"></span></button>
+        </div>
+      </div>
+      <section class="side-sec" id="pad-sec" aria-label="Launch site">
+        <span class="lbl">Launch site</span>
+        <select class="field" id="ms-pad" aria-label="Launch site"></select>
+      </section>
+      <section class="side-sec" id="site-sec" aria-label="Landing site">
+        <span class="lbl">Landing site (Moon)</span>
+        <button class="field" id="site-btn" aria-haspopup="true" aria-expanded="false">
+          <span><b id="site-name">-</b><small id="site-coord"></small></span><span data-icon="chevron"></span>
+        </button>
+        <button class="field" id="date-btn" aria-haspopup="dialog" aria-expanded="false" title="Target landing date on the Moon &amp; start of the 30-day analysis window">
+          <span id="date-label">-</span><span data-icon="cal"></span>
+        </button>
+        <div class="utc-pick">
+          <select class="utc-sel" id="utc-day-off" aria-label="Day within the 30-day window"></select>
+          <select class="utc-sel" id="utc-time" aria-label="Landing time (UTC)"></select>
+        </div>
+        <span class="lbl">Route to the Moon</span>
+        <div class="seg panel ms-seg" id="ms-route" role="radiogroup" aria-label="Route to the Moon">
+          <button data-v="fast" title="~3 days, like Apollo 11">Fast (3 d)</button>
+          <button data-v="artemis" title="~5 days, like Artemis I">Standard (5 d)</button>
+          <button data-v="low" title="~110 days, low-energy like CAPSTONE">Low-energy</button>
+        </div>
+        <div id="ms-eta">Launch: <b>-</b></div>
+        <div class="ms-act">
+          <button class="btn go" id="ms-go" style="flex:1;justify-content:center"><span data-icon="play"></span>Launch rocket</button>
+        </div>
+        <details class="ms-more">
+          <summary>Spacecraft settings</summary>
+          <div class="ms-more-body">
+            <div class="seg panel ms-seg" id="ms-engine" role="radiogroup" aria-label="Spacecraft engine">
+              <button data-v="hyper" title="Isp ~315 s">Hypergolic</button>
+              <button data-v="methane" title="Isp ~360 s">Methane</button>
+              <button data-v="hydrogen" title="Isp ~450 s">Hydrogen</button>
+            </div>
+            <div class="ms-two">
+              <label><span class="lbl">Dry mass (kg)</span><input class="field" id="ms-mass" type="number" min="100" max="100000" step="50" value="1500" /></label>
+              <label><span class="lbl">Lunar orbit wait (days)</span><input class="field" id="ms-wait" type="number" min="0" max="30" step="0.5" value="1" /></label>
+            </div>
+          </div>
+        </details>
+      </section>
+      <section class="side-sec" id="status" aria-live="polite">
+        <div class="verdict"><span class="badge" id="v-badge"></span><span id="v-title"></span></div>
+        <div class="stat">
+          <span class="ic sun" data-icon="sun"></span>
+          <span class="who"><span class="name">Sun</span><span class="chip" id="sun-chip"></span></span>
+          <span class="next"><small id="sun-next-label"></small><b id="sun-next"></b></span>
+        </div>
+        <div class="stat">
+          <span class="ic earth" data-icon="earth"></span>
+          <span class="who"><span class="name">Earth</span><span class="chip" id="earth-chip"></span></span>
+          <span class="next"><small id="earth-next-label"></small><b id="earth-next"></b></span>
+        </div>
+        <div class="kpis" title="Computed for 30 days from the landing date">
+          <div><small>Sunlit</small><b id="m-lit"></b></div>
+          <div><small>Earth</small><b id="m-see"></b></div>
+          <div><small>Both</small><b id="m-both"></b></div>
+          <div><small>Longest night</small><b id="m-night"></b></div>
+        </div>
+      </section>
+      <section class="side-sec" id="side-tools">
+        <span class="lbl">3D layers &amp; camera</span>
+        <div class="panel seg side-seg" id="layers" role="radiogroup" aria-label="Terrain layers">
+          <button class="on" data-layer="normal">Terrain</button>
+          <button data-layer="lit">Sunlit</button>
+          <button data-layer="see">Earth</button>
+          <button data-layer="both">Both</button>
+        </div>
+        <div class="panel" id="legend" hidden>
+          <span id="legend-title"></span>
+          <div class="bar" id="legend-bar"></div>
+          <div class="ends"><span>0%</span><span>100% of time (30 days)</span></div>
+          <div class="info" id="legend-info"></div>
+        </div>
+        <div class="ms-two" id="moon-cam-row">
+          <button class="field tool" id="surface-btn" title="Eye-level camera, true scale">View from surface</button>
+          <button class="field tool" id="reset-cam-btn" title="Reset the 3D camera">Reset camera</button>
+        </div>
+        <div class="panel seg side-seg" id="surface-tools" hidden>
+          <button data-look="sun">Look at Sun</button>
+          <button data-look="earth">Look at Earth</button>
+        </div>
+        <div class="panel seg side-seg" id="space-cam" role="radiogroup" aria-label="Simulation camera" hidden>
+          <button data-cam="overview">Overview</button>
+          <button class="on" data-cam="craft">Cinematic</button>
+          <button data-cam="closeup">Rocket close-up</button>
+          <button data-cam="moon">Moon</button>
+          <button data-cam="landing">Landing POV</button>
+        </div>
+        <button class="field tool" id="space-exit" hidden>Back to Moon</button>
+      </section>
+    </aside>
+    <div id="side-grip" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0" title="Drag to resize"></div>
+
+    <div id="main">
+    <div id="view">
+      <button class="panel" id="side-open" type="button" aria-label="Open sidebar" title="Open sidebar" hidden><span data-icon="sidebar"></span></button>
+      <header id="bar">
+        <div class="panel" id="traj-hud">
+          <div class="bar-head" id="traj-hud-head">
+            <span class="lbl">Trajectory map</span>
+            <button class="icon-btn" id="traj-hud-toggle" type="button" aria-expanded="true" aria-label="Collapse or expand the trajectory map" title="Collapse / expand trajectory map">▾</button>
+          </div>
+          <div id="traj-hud-body">
+            <canvas id="ms-canvas" role="img" aria-label="Earth-to-Moon flight simulation"></canvas>
+            <div class="sim-ctl">
+              <button class="btn" id="sim-play" aria-label="Play simulation"><span data-icon="play"></span></button>
+              <input type="range" id="sim-u" min="0" max="1000" value="0" aria-label="Simulation time" />
+              <button class="btn" id="sim-3d">View 3D</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel" id="traj-details" hidden aria-live="polite">
+          <div class="bar-head" id="traj-details-head">
+            <span class="lbl">Mission details &amp; telemetry</span>
+            <button class="icon-btn" id="traj-details-toggle" type="button" aria-expanded="true" aria-label="Collapse or expand mission details" title="Collapse / expand mission details">▾</button>
+          </div>
+          <div id="traj-details-body">
+            <ol class="ms-steps" id="ms-steps"></ol>
+            <div class="ms-kpis" id="ms-kpis"></div>
+            <div class="sim-tel" id="sim-tel"></div>
+            <div class="ms-land" id="ms-land"></div>
+            <div class="ms-slip" id="ms-slip"></div>
+          </div>
+        </div>
+      </header>
+
+      <aside class="panel" id="land-hud" hidden aria-live="polite"></aside>
+
+      <section id="dock" aria-label="Panel analisis">
+        <div class="panel" id="dock-pop" hidden>
+          <header>
+            <button class="btn" id="play" title="Play 30 days">▶</button>
+            <span class="lbl" id="dock-title">30-day timeline</span>
+            <span id="now" class="mono"></span>
+          </header>
+          <div data-pane="timeline">
+            <canvas id="timeline"></canvas>
+            <div class="key"><i style="background:var(--sun)"></i>sunlit <i style="background:var(--earth)"></i>Earth visible <i style="background:var(--good)"></i>both · click a name to switch site</div>
+            <div class="tl-inspect" id="tl-inspect"></div>
+          </div>
+          <div data-pane="pano" hidden>
+            <canvas id="pano"></canvas>
+            <div class="key"><i style="background:var(--ground-edge)"></i>terrain <i style="background:var(--sun)"></i>Sun <i style="background:var(--earth)"></i>Earth · faint dots = 30-day path</div>
+            <div class="pano-explain" id="pano-explain"></div>
+          </div>
+          <div data-pane="cal" hidden>
+            <canvas id="cal"></canvas>
+            <div class="cal-foot">
+              <span id="cal-best"></span>
+              <span id="cal-info"></span>
+            </div>
+            <div class="key" title="Good: sunlit for 5+ days and Earth visible 50%+. Poor: dark, or night within 2 days."><i style="background:var(--good)"></i>good <i style="background:var(--mid)"></i>fair <i style="background:var(--bar-off)"></i>poor · click a day to select it</div>
+          </div>
+          <div data-pane="cmp" hidden>
+            <div class="cmp-wrap">
+              <table id="cmp">
+                <thead><tr>
+                  <th>Scenario</th><th>Verdict</th><th>Sunlit</th><th>Earth</th><th>Both</th><th>Sunrise / Sunset</th><th>Earthrise / Earthset</th><th>Longest night</th><th>Longest comms gap</th><th></th>
+                </tr></thead>
+                <tbody id="cmp-rows"></tbody>
+              </table>
+            </div>
+            <div class="cmp-foot">
+              <label>+ Launch delay scenario
+                <select id="slip" aria-label="Add a launch delay scenario">
+                  <option value="">choose…</option>
+                  <option value="7">7 days</option><option value="14">14 days</option>
+                  <option value="30">30 days</option><option value="60">60 days</option>
+                </select>
+              </label>
+              <span id="cmp-sum"></span>
+            </div>
+            <div class="key">30 days from the landing date · <span style="color:var(--good)">green</span> = best · add sites with "+ Compare" in the site menu</div>
+          </div>
+        </div>
+        <div class="tabs" id="dock-tabs" role="tablist">
+          <span class="tabs-date" id="tabs-date" title="All four tabs use this date (start of the 30-day window)"></span>
+          <button data-tab="timeline" role="tab" aria-expanded="false">Timeline</button>
+          <button data-tab="pano" role="tab" aria-expanded="false">Horizon</button>
+          <button data-tab="cal" role="tab" aria-expanded="false">Calendar</button>
+          <button data-tab="cmp" role="tab" aria-expanded="false">Compare</button>
+        </div>
+      </section>
+
+      <div id="loading">Loading LOLA terrain data…</div>
+    </div>
+    </div>
+
+      <div class="panel pop" id="about" hidden>
+        <h3>LumaNav</h3>
+        <p class="tag">See the terrain. Predict the windows. Plan the landing.</p>
+        <p>Rates lunar landing sites and dates on two things: <b>power</b> (the Sun is visible above the terrain) and <b>communication</b> (Earth is visible above the terrain).</p>
+
+        <h4>Data</h4>
+        <ul>
+          <li><b>Routes to the Moon</b> (estimates based on real missions, not AI): Fast ~3 days (Apollo 11, 1969: ~76 h to lunar orbit), Standard ~5 days (Artemis I, 2022: launched 16 Nov, lunar flyby 21 Nov), Low-energy ~110 days (CAPSTONE, 2022: ~4.5 months). Δv per phase uses typical values. Moon position, transfer ellipse (Kepler) and propellant (Tsiolkovsky) are computed; the low-energy path in 3D is illustrative only.</li>
+          <li><b>Terrain</b>: NASA LRO / LOLA (PDS): <span class="mono">LDEM_75S_240M</span> &amp; <span class="mono">LDEM_75N_240M</span> (240 m per pixel, latitude ≥75.2°) and <span class="mono">LDEM_16</span> (~1.9 km per pixel, whole Moon).</li>
+          <li><b>Sun &amp; Earth positions</b>: VSOP87 + IAU lunar rotation model (including libration) via <span class="mono">astronomy-engine</span>.</li>
+          <li><b>Earth textures</b>: NASA Blue Marble Next Generation (via NASA GIBS) and NASA Black Marble 2016 (city lights).</li>
+          <li><b>Moon texture</b> (3D mission &amp; site picker): NASA SVS CGI Moon Kit, LRO LROC colour mosaic.</li>
+        </ul>
+
+        <h4>Method</h4>
+        <ol>
+          <li>From the landing point, rays are cast in 720 directions (every 0.5°) out to 150 km over the active LOLA map (240 m polar projection at the poles, global geodesics elsewhere). The steepest terrain angle in each direction, including lunar curvature, forms the <b>horizon line</b>.</li>
+          <li>Every 30 minutes for 30 days, the Sun and Earth positions in the local sky are computed (azimuth &amp; elevation).</li>
+          <li>Sun (0.53° disc) above the horizon = <b>sunlit</b>. Earth above the horizon = <b>direct communication possible</b>.</li>
+          <li>Verdicts and recommendations use a transparent, deterministic formula (no AI). Sites are ranked over the <b>first 7 surface days</b> after landing on a 0–100 scale: sunlit at touchdown (+20), Earth visible at touchdown (+10), share of time with both (+35), share of time sunlit (+20), and continuous light at the start of the mission (+15). A site whose elevation map (DEM) is not loaded can never top the ranking.</li>
+        </ol>
+
+        <h4>Validation against NASA JPL Horizons</h4>
+        <p id="val-sum"></p>
+        <table class="val"><thead><tr><th>Time (UTC)</th><th>Sun az / el</th><th>Earth az / el</th><th>Difference</th></tr></thead><tbody id="val-rows"></tbody></table>
+        <p class="small">These numbers are recomputed in your browser when this panel opens and compared with JPL Horizons values.</p>
+
+        <h4>Limitations</h4>
+        <ul>
+          <li>This is an analysis of <b>lighting and line-of-sight geometry</b>, not a guarantee of landing success or radio link quality.</li>
+          <li>Between 75.2°S and 75.2°N the global 16 pixel/degree map (~1.9 km/pixel) is used, so hills or craters smaller than ~2 km are not resolved as finely as at the poles (240 m/pixel).</li>
+          <li>The terrain colour layers use a coarser calculation (2°, 60 km) for speed, so their values are approximate.</li>
+          <li>In the orbit view, relief is exaggerated 2× (±40 km patch at the poles, ±120 km on the global map) and Earth and Sun are drawn 3× larger for clarity. The surface view uses true size (scroll to zoom), and all numbers use true scale.</li>
+          <li>Earth: phase from the real Sun direction, rotation from Greenwich sidereal time (sub-Moon point within ~0.4° of JPL Horizons). Clouds are not drawn.</li>
+          <li>Coordinates of some commercial landers are approximate.</li>
+          <li>The mission planner uses typical Δv per phase and the Tsiolkovsky rocket equation: an early-planning estimate, not trajectory optimisation. The trajectory diagram is schematic.</li>
+        </ul>
+
+        <h4>Use of AI</h4>
+        <p class="small">Claude (Anthropic) helped write code and check calculations. Every result in the app comes from deterministic, verifiable formulas.</p>
+      </div>
+
+      <div class="panel" id="datepick" role="dialog" aria-label="Choose landing date" hidden>
+        <div class="dp-head">
+          <button class="dp-nav" id="dp-prev" aria-label="Previous"><span data-icon="left"></span></button>
+          <button class="dp-title" id="dp-title" type="button"></button>
+          <button class="dp-nav" id="dp-next" aria-label="Next"><span data-icon="right"></span></button>
+        </div>
+        <div class="dp-week" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        <div class="dp-grid" id="dp-grid" role="grid"></div>
+        <div class="dp-foot">
+          <span class="dp-key"><i class="q2"></i>good <i class="q1"></i>fair <i class="q0"></i>poor</span>
+          <button class="link" id="dp-today">Today</button>
+        </div>
+      </div>
+
+      <div class="panel" id="route-pop" role="dialog" aria-label="Landing site recommendations" hidden>
+        <div class="rp-head" id="rp-head"></div>
+        <div class="ms-rec" id="ms-rec"></div>
+      </div>
+      <div class="panel" id="picker" hidden>
+        <div class="moon-map-wrap">
+          <canvas id="moon-map" width="340" height="170" aria-label="Global Moon map, click to pick a landing point"></canvas>
+          <div class="moon-map-foot"><span>Click the map to land at any coordinate</span><span id="moon-map-coord" class="mono"></span></div>
+        </div>
+        <ul id="sites"></ul>
+        <div class="picker-foot">
+          <p>Or enter coordinates, or double-click the 3D terrain.</p>
+          <form id="custom">
+            <input id="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude (-90..90)" value="-89.3" aria-label="Latitude" />
+            <input id="lon" type="number" step="any" min="-180" max="360" placeholder="Longitude °E" value="-140" aria-label="East longitude" />
+            <button class="btn">Go</button>
+          </form>
+        </div>
+      </div>
+
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
